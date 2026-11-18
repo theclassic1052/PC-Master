@@ -135,7 +135,7 @@ export async function ntsRoute(req, connect) {
     const list = [];
     for (const box of boxes) {
       try { await im.cmd('EXAMINE ' + q(box)); } catch { continue; }
-      const s = await im.cmd('UID SEARCH SINCE ' + sinceDate(days) + ' OR FROM "hometax.go.kr" FROM "nts.go.kr"');
+      const s = await im.cmd('UID SEARCH SINCE ' + sinceDate(days) + ' OR OR FROM "hometax.go.kr" FROM "nts.go.kr" TEXT "NTS_eTaxInvoice"');
       const uids = ((s.match(/\* SEARCH([\d ]*)/) || [])[1] || '').trim().split(/\s+/).filter(Boolean).map(Number);
       if (!uids.length) continue;
       const h = await im.cmd('UID FETCH ' + uids.join(',') + ' (INTERNALDATE BODY.PEEK[HEADER.FIELDS (SUBJECT)])');
