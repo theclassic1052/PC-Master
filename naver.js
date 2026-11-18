@@ -99,28 +99,52 @@ export async function ntsRoute(req, connect) {
   try {
     await im.greet();
     try { await im.cmd('LOGIN ' + q(id) + ' ' + q(pw)); } catch (e) { return json({ error: '네이버 로그인 실패 (IMAP 사용 설정과 비밀번호를 확인하세요): ' + e.message }, 401); }
-    await im.cmd('SELECT INBOX');
+    // uid 형식: 받은메일함은 숫자 그대로, 다른 메일함은 "메일함이름(인코딩)|uid"
+    const parseId = (u) => { const t = String(u); const i = t.lastIndexOf('|'); return i < 0 ? { box: 'INBOX', uid: parseInt(t, 10) } : { box: decodeURIComponent(t.slice(0, i)), uid: parseInt(t.slice(i + 1), 10) }; };
+    const makeId = (box, uid) => (box === 'INBOX' ? uid : encodeURIComponent(box) + '|' + uid);
     if (Array.isArray(body.uids) && body.uids.length) {
       const out = [];
-      for (const uid of body.uids.slice(0, 3).map((u) => parseInt(u, 10)).filter(Boolean)) {
+      let cur = '';
+      for (const raw of body.uids.slice(0, 3)) {
+        const { box, uid } = parseId(raw);
+        if (!uid) continue;
+        if (box !== cur) { await im.cmd('EXAMINE ' + q(box)); cur = box; }
         const r = await im.cmd('UID FETCH ' + uid + ' (INTERNALDATE BODY.PEEK[])');
         const dm = r.match(/INTERNALDATE "([^"]+)"/);
         const sm = r.match(/\r\nSubject:\s*([^\r\n]*(?:\r\n[ \t][^\r\n]*)*)/i);
-        out.push({ uid, date: dm ? dm[1] : '', subject: sm ? decodeWords(sm[1].replace(/\r\n[ \t]/g, ' ')) : '', b64: extractAttachment(r) });
+        out.push({ uid: makeId(box, uid), date: dm ? dm[1] : '', subject: sm ? decodeWords(sm[1].replace(/\r\n[ \t]/g, ' ')) : '', b64: extractAttachment(r) });
       }
       return json(out);
     }
     const days = Math.min(Math.max(parseInt(body.days, 10) || 7, 1), 400);
-    const s = await im.cmd('UID SEARCH SINCE ' + sinceDate(days) + ' FROM "hometax.go.kr"');
-    const uids = ((s.match(/\* SEARCH([\d ]*)/) || [])[1] || '').trim().split(/\s+/).filter(Boolean).map(Number);
-    if (!uids.length) return json([]);
-    const h = await im.cmd('UID FETCH ' + uids.join(',') + ' (INTERNALDATE BODY.PEEK[HEADER.FIELDS (SUBJECT)])');
+    // 받은메일함뿐 아니라 사용자가 만든 메일함·스팸함까지 찾음 (보낸·임시·휴지통 제외)
+    let boxes = ['INBOX'];
+    try {
+      const ls = await im.cmd('LIST "" "*"');
+      for (const ln of ls.split('\r\n')) {
+        const m = ln.match(/^\* LIST \(([^)]*)\) (?:"[^"]*"|NIL) (.+)$/i);
+        if (!m) continue;
+        const flags = m[1];
+        let name = m[2].trim();
+        if (name.startsWith('"')) name = name.slice(1, -1).replace(/\\(.)/g, '$1');
+        if (/\\Noselect|\\Sent|\\Drafts|\\Trash/i.test(flags)) continue;
+        if (/^(INBOX|Sent Messages|Sent|Drafts|Deleted Messages|Trash)$/i.test(name)) continue;
+        boxes.push(name);
+      }
+    } catch { /* LIST 실패 시 받은메일함만 */ }
     const list = [];
-    for (const blk of h.split(/\r\n(?=\* \d+ FETCH)/)) {
-      const um = blk.match(/UID (\d+)/); if (!um) continue;
-      const dm = blk.match(/INTERNALDATE "([^"]+)"/);
-      const sm = blk.match(/Subject:\s*([^\r\n]*(?:\r\n[ \t][^\r\n]*)*)/i);
-      list.push({ uid: Number(um[1]), date: dm ? dm[1] : '', subject: sm ? decodeWords(sm[1].replace(/\r\n[ \t]/g, ' ')) : '' });
+    for (const box of boxes) {
+      try { await im.cmd('EXAMINE ' + q(box)); } catch { continue; }
+      const s = await im.cmd('UID SEARCH SINCE ' + sinceDate(days) + ' OR FROM "hometax.go.kr" FROM "nts.go.kr"');
+      const uids = ((s.match(/\* SEARCH([\d ]*)/) || [])[1] || '').trim().split(/\s+/).filter(Boolean).map(Number);
+      if (!uids.length) continue;
+      const h = await im.cmd('UID FETCH ' + uids.join(',') + ' (INTERNALDATE BODY.PEEK[HEADER.FIELDS (SUBJECT)])');
+      for (const blk of h.split(/\r\n(?=\* \d+ FETCH)/)) {
+        const um = blk.match(/UID (\d+)/); if (!um) continue;
+        const dm = blk.match(/INTERNALDATE "([^"]+)"/);
+        const sm = blk.match(/Subject:\s*([^\r\n]*(?:\r\n[ \t][^\r\n]*)*)/i);
+        list.push({ uid: makeId(box, Number(um[1])), box, date: dm ? dm[1] : '', subject: sm ? decodeWords(sm[1].replace(/\r\n[ \t]/g, ' ')) : '' });
+      }
     }
     return json(list);
   } catch (e) {
