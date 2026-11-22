@@ -18,6 +18,10 @@
   이 파일이 바뀌어 푸시되면 `.github/workflows/apk.yml` 이 APK 를 빌드해 Release `apk` 에 `pcmaster.apk` 로 올림.
   웹 화면만 바꾸면 APK 재설치 불필요.
 
+## 통화 인입 대상 (수신만 / 수·발신)
+- 앱 통화 인입 창 맨 위 "인입 대상". 기본 `수신만`: 안드로이드 앱(`Auto.scanCalls`)이 녹음 파일 종료 시각에 맞는 통화기록(READ_CALL_LOG)을 찾아 발신(type 2)이면 서버로 올리지 않음. 권한이 없거나 못 찾으면(20분 대기 후) 그냥 올림.
+- 웹→앱 다리: `PCM.getCallDir/setCallDir("in"|"both")`, `PCM.hasCallLogPermission/requestCallLogPermission`. 새 APK 설치 + 통화기록 권한 허용 필요.
+
 ## 버전 표시
 - 번들 안 `var r4="YYYY.MM.DD-NN"` 이 데이터 관리 창 상단 버전. **수정할 때마다 올린다.**
 - 앱은 화면 복귀/로드 5초 후 `index.html` 의 r4 를 비교해 다르면 자동 새로고침.
