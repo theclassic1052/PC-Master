@@ -36,6 +36,15 @@
 ⑦ 설정 전체 백업 — 연동 키·Firebase 설정 등을 비밀번호로 AES-GCM 암호화해 `backup/settings.enc.json`
 서버: `pcmaster-stt.sunwoo-computer.workers.dev`(통화 STT/인입), `sunwoo-tax-invoice.sunwoo-computer.workers.dev`.
 
+## 통화 STT 워커 `pcmaster-stt` (코드는 이 저장소에 없음 — Cloudflare 대시보드에서 직접 관리)
+- 구성: `worker.js`(메인) + `naver.js`(IMAP/NTS 메일, 이 저장소 naver.js 와 같은 내용). 바인딩: Workers AI `AI`, KV `SMS`(pcmaster-sms), 변수 `APP_URL`. 비밀: `PCM_KEY`(필수), `GEMINI_API_KEY`·`GROQ_API_KEY`(선택). **키는 반드시 Secret 으로** 넣을 것(Variable 은 평문 노출).
+- 경로: `POST /?key&file=` 녹음 업로드(→ 변환 후 인입 주소 반환), `GET /calls`·`/sms`·`/nts`, `GET /engine?key[&set=1|2]` 변환 엔진 조회/저장. 모든 경로는 `key`(=PCM_KEY) 검사.
+- 변환 엔진 선택: KV `cfg:stt_engine` = `1`(기존 Workers AI Whisper) / `2`(Gemini 3.5 Transcribe 먼저, 실패 시 Groq→Workers AI). 기본 `2`. 요청에 `&engine=1|2` 를 주면 그 요청만 덮어씀. 앱 통화 인입 창 맨 위 "음성 변환 엔진" 탭이 `/engine` 을 호출.
+- 중복 건너뛰기: 파일 SHA-256 해시를 KV `h:<hash>` 에 **변환 전에** 저장(3일). 같은 파일은 "같은 녹음 파일이라 건너뛰었어요"로 끝남. 시험할 땐 `&force=1`(앱의 "녹음 파일 테스트" 버튼이 자동으로 붙임).
+- 앱의 통화 인입: 업로드 결과는 KV `call:` 항목으로 쌓이고 앱이 `/calls` 를 폴링해 가져옴. 항목 추출은 앱 안(`a1` 규칙 + 연동 ③ Claude 키가 있으면 `lv/W3` LLM). 금액(`amount`)은 접수 시 AS 건의 `costLabor` 로 전달.
+- 수정·배포 요령(대시보드): 편집기의 "Latest" 가 활성 버전과 다를 수 있으니 상단 버전 표시의 `(Active)` 확인. 코드 일부 치환은 편집기 Ctrl+H 로, 배포는 Deploy. 문제 시 Deployments → 이전 버전 `⋯` → Rollback(또는 Promote version). 실시간 로그는 Observability → Live(설정 변경 없이 사용 가능).
+- 알려진 제한: Gemini 인라인 업로드는 14MB 초과 시 건너뜀. 어느 엔진이 쓰였는지는 로그(`stt error`)로만 확인됨.
+
 ## 검증 (푸시 전 필수)
 - 번들 스크립트를 뽑아 `node --check` 로 문법 확인.
 - `python3 -m http.server` + Playwright(설치돼 있음)로 화면 열어 pageerror 없는지, 바꾼 부분 스크린샷 확인.
