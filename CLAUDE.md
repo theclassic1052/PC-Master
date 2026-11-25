@@ -25,7 +25,8 @@
 ## 견적 → 게임견적 (가이드컴 게임별 추천 PC)
 - 새 견적 품목 머리줄: `+20% +30%`(가이드컴 가격 가산, 기본 10%) · `게임견적` · `기본`(PC 기본 9종 ↔ 직접) · `+`(품목 추가).
 - `게임견적` → `window.pcmGameQuote(onAdd)` 팝업(번들 아래 `<script id="guidecom-voice">` 안, 순수 DOM): 게임 선택 → 해상도·옵션·인텔/AMD → 추천 조립PC(최대 3개, 부품별 가격) → `견적서에 추가` 시 부품을 품목으로 일괄 추가(단가 = 부품가 +%, 1,000원 단위, 부가세 별도로 전환, 이벤트 사은품 제외).
-- 데이터: 저장소 루트 `gaming.json`. `scripts/gaming-scrape.mjs` 를 `.github/workflows/gaming.yml` 이 **매일 06:07(KST)** 실행해 가이드컴(`/pc/gaming_loader.php`, `/pc/list.php`, `/pc/detail.html` 의 `:data-parts`)에서 모아 커밋. 같은 주소라 CORS·Worker 불필요. 수동 갱신은 Actions → "게임견적 데이터 갱신" → Run workflow.
+- **실시간 우선**: 게임을 고르면 `가이드컴 검색 Worker/gq?game=ID`, 옵션을 고르면 `/gq?spec=…&label=…` 로 가이드컴에서 바로 읽음(팝업에 "● 가이드컴 실시간"). Worker 쪽 코드는 `scripts/guidecom-lib.mjs` 를 Worker 에 `gq.js` 로 넣고 main 에서 `if (url.pathname === '/gq') return handleGq(url);`. Worker 에 없거나 실패하면 아래 예비 데이터로 표시("● 실시간 연결 안 됨 · 날짜 기준").
+- 예비 데이터: 저장소 루트 `gaming.json`. `scripts/gaming-scrape.mjs`(+`guidecom-lib.mjs`) 를 `.github/workflows/gaming.yml` 이 **매일 06:07(KST)** 실행해 가이드컴(`/pc/gaming_loader.php`, `/pc/list.php`, `/pc/detail.html` 의 `:data-parts`)에서 모아 커밋. 같은 주소라 CORS·Worker 불필요. 수동 갱신은 Actions → "게임견적 데이터 갱신" → Run workflow.
 - 딱 맞는 CPU+그래픽카드 상품이 없으면 그래픽카드(또는 CPU) 조건만으로 다시 찾고(`relaxed`), 빠진 부품 모델 번호가 이름에 있는 상품 → 낮은 가격 순으로 고름.
 
 ## 버전 표시

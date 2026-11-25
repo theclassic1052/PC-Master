@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '7 21 * * *'   # 매일 06:07 (한국시간)
   push:
-    paths: ['scripts/gaming-scrape.mjs', '.github/workflows/gaming.yml']
+    paths: ['scripts/gaming-scrape.mjs', 'scripts/guidecom-lib.mjs', '.github/workflows/gaming.yml']
 permissions:
   contents: write
 concurrency:
