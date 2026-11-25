@@ -123,6 +123,22 @@ export function rank(items, label, relaxed) {
   const key = want ? want[0].replace(/[A-Z]+$/i, '') : '';
   return items.slice().sort((a, b) => (key ? (b.name.includes(key) - a.name.includes(key)) : 0) || ((a.price || 9e9) - (b.price || 9e9)));
 }
+// 그래픽카드 모델 읽기 + 대략적인 성능 점수(같은 사양이 없을 때 '비슷하거나 더 좋은' 카드 고르기용)
+const GPU_SCORE = {
+  'GT1030': 5, 'GTX1650': 20, 'GTX1660': 26, 'GTX1660SUPER': 30, 'RTX3050': 28, 'RTX3060': 40, 'RTX3060TI': 48, 'RTX3070': 55, 'RTX3080': 68,
+  'RTX4060': 50, 'RTX4060TI': 58, 'RTX4070': 70, 'RTX4070SUPER': 78, 'RTX4070TI': 80, 'RTX4070TISUPER': 86, 'RTX4080': 98, 'RTX4080SUPER': 100, 'RTX4090': 125,
+  'RTX5050': 45, 'RTX5060': 56, 'RTX5060TI': 64, 'RTX5070': 80, 'RTX5070TI': 94, 'RTX5080': 108, 'RTX5090': 150,
+  'RX6500XT': 18, 'RX6600': 38, 'RX6650XT': 44, 'RX7600': 48, 'RX7600XT': 50, 'RX7700XT': 66, 'RX7800XT': 76, 'RX7900XT': 95, 'RX7900XTX': 105,
+  'RX9060': 54, 'RX9060XT': 62, 'RX9070': 86, 'RX9070XT': 96,
+};
+export function gpuOf(text) {
+  const m = String(text || '').toUpperCase().replace(/지포스|라데온/g, ' ').match(/\b(RTX|GTX|RX|GT)\s*-?\s*(\d{3,4})\s*(TI\s*SUPER|TIS|TI|SUPER|XTX|XT|S)?(?![A-Z0-9])/);
+  if (!m) return null;
+  let suf = (m[3] || '').replace(/\s+/g, '');
+  if (suf === 'TIS') suf = 'TISUPER'; if (suf === 'S') suf = 'SUPER';
+  const key = m[1] + m[2] + suf;
+  return { key, score: GPU_SCORE[key] ?? null };
+}
 export async function bestFor(spec, label) {
   let items = await list(spec), relaxed = '';
   if (!items.length) { // 딱 맞는 상품이 없으면 그래픽카드 → CPU 조건 하나만으로 다시 찾기
@@ -134,7 +150,20 @@ export async function bestFor(spec, label) {
       if (items.length) { relaxed = CPU_GROUPS.has(p.split('|')[0]) ? 'cpu' : 'vga'; items = rank(items, label, relaxed); break; }
     }
   }
-  return { relaxed, items: items.slice(0, TOP) };
+  // 가이드컴은 상품이 없는 필터를 무시해서, 추천 그래픽카드와 다른 PC가 섞여 나올 수 있다 → 이름으로 다시 확인
+  const want = gpuOf(String(label || '').split('+')[1] || '');
+  if (want && items.length) {
+    const tagged = items.map((it) => ({ it, g: gpuOf(it.name) }));
+    const exact = tagged.filter((x) => x.g && x.g.key === want.key);
+    if (exact.length) items = [...exact, ...tagged.filter((x) => !exact.includes(x))].map((x) => x.it);
+    else {
+      relaxed = 'gpu';
+      const ws = want.score ?? 0;
+      const cls = (x) => (x.g?.score == null ? 2 : x.g.score >= ws ? 0 : 1); // 0: 같거나 더 좋은 카드, 1: 낮은 카드, 2: 모름
+      items = tagged.sort((a, b) => cls(a) - cls(b) || (cls(a) === 0 ? a.g.score - b.g.score : cls(a) === 1 ? b.g.score - a.g.score : 0) || ((a.it.price || 9e9) - (b.it.price || 9e9))).map((x) => x.it);
+    }
+  }
+  return { relaxed, items: items.slice(0, TOP), want: want ? want.key : '' };
 }
 
 
