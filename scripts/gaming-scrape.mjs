@@ -119,7 +119,14 @@ async function pool(items, n, fn) {
 }
 
 const CPU_GROUPS = new Set(['4548.0', '4562.0']); // 가이드컴 필터: CPU(인텔)·CPU(AMD)
-async function bestFor(spec) {
+// 조건을 줄여 찾은 경우: 빠진 부품(CPU 또는 그래픽카드) 모델 번호가 이름에 있는 상품 → 낮은 가격 순
+function rank(items, label, relaxed) {
+  const [cpu = '', vga = ''] = String(label || '').split('+').map((x) => x.trim());
+  const want = (relaxed === 'vga' ? cpu : vga).match(/\d{4,5}[A-Z]{0,3}/i);
+  const key = want ? want[0].replace(/[A-Z]+$/i, '') : '';
+  return items.slice().sort((a, b) => (key ? (b.name.includes(key) - a.name.includes(key)) : 0) || ((a.price || 9e9) - (b.price || 9e9)));
+}
+async function bestFor(spec, label) {
   let items = await list(spec), relaxed = '';
   if (!items.length) { // 딱 맞는 상품이 없으면 그래픽카드 → CPU 조건 하나만으로 다시 찾기
     const pairs = spec.split(',');
@@ -127,7 +134,7 @@ async function bestFor(spec) {
     for (const p of order) {
       if (pairs.length < 2) break;
       items = await list(p);
-      if (items.length) { relaxed = CPU_GROUPS.has(p.split('|')[0]) ? 'cpu' : 'vga'; break; }
+      if (items.length) { relaxed = CPU_GROUPS.has(p.split('|')[0]) ? 'cpu' : 'vga'; items = rank(items, label, relaxed); break; }
     }
   }
   return { relaxed, items: items.slice(0, TOP) };
@@ -143,12 +150,12 @@ await pool(gameList, 3, async (g) => {
     rec[g.id] = parseLoader(JSON.parse(r).content || '');
   } catch (e) { console.warn('게임', g.id, g.name, e.message); }
 });
-const specs = new Set();
-for (const rs of Object.values(rec)) for (const r of rs) for (const o of r.opts) for (const c of ['intel', 'amd']) if (o[c]) specs.add(o[c].spec);
+const specs = new Map();
+for (const rs of Object.values(rec)) for (const r of rs) for (const o of r.opts) for (const c of ['intel', 'amd']) if (o[c] && !specs.has(o[c].spec)) specs.set(o[c].spec, o[c].label);
 console.log(`사양 ${specs.size}개`);
 const specData = {};
-await pool([...specs], 3, async (s) => {
-  try { specData[s] = await bestFor(s); } catch (e) { console.warn('사양', s, e.message); specData[s] = { relaxed: '', items: [] }; }
+await pool([...specs.keys()], 3, async (s) => {
+  try { specData[s] = await bestFor(s, specs.get(s)); } catch (e) { console.warn('사양', s, e.message); specData[s] = { relaxed: '', items: [] }; }
 });
 const gids = new Set(); for (const v of Object.values(specData)) for (const it of v.items) gids.add(it.gid);
 console.log(`상품 ${gids.size}개`);

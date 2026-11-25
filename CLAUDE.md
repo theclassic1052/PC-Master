@@ -22,6 +22,12 @@
 - 앱 통화 인입 창 맨 위 "인입 대상". 기본 `수신만`: 안드로이드 앱(`Auto.scanCalls`)이 녹음 파일 종료 시각에 맞는 통화기록(READ_CALL_LOG)을 찾아 발신(type 2)이면 서버로 올리지 않음. 권한이 없거나 못 찾으면(20분 대기 후) 그냥 올림.
 - 웹→앱 다리: `PCM.getCallDir/setCallDir("in"|"both")`, `PCM.hasCallLogPermission/requestCallLogPermission`. 새 APK 설치 + 통화기록 권한 허용 필요.
 
+## 견적 → 게임견적 (가이드컴 게임별 추천 PC)
+- 새 견적 품목 머리줄: `+20% +30%`(가이드컴 가격 가산, 기본 10%) · `게임견적` · `기본`(PC 기본 9종 ↔ 직접) · `+`(품목 추가).
+- `게임견적` → `window.pcmGameQuote(onAdd)` 팝업(번들 아래 `<script id="guidecom-voice">` 안, 순수 DOM): 게임 선택 → 해상도·옵션·인텔/AMD → 추천 조립PC(최대 3개, 부품별 가격) → `견적서에 추가` 시 부품을 품목으로 일괄 추가(단가 = 부품가 +%, 1,000원 단위, 부가세 별도로 전환, 이벤트 사은품 제외).
+- 데이터: 저장소 루트 `gaming.json`. `scripts/gaming-scrape.mjs` 를 `.github/workflows/gaming.yml` 이 **매일 06:07(KST)** 실행해 가이드컴(`/pc/gaming_loader.php`, `/pc/list.php`, `/pc/detail.html` 의 `:data-parts`)에서 모아 커밋. 같은 주소라 CORS·Worker 불필요. 수동 갱신은 Actions → "게임견적 데이터 갱신" → Run workflow.
+- 딱 맞는 CPU+그래픽카드 상품이 없으면 그래픽카드(또는 CPU) 조건만으로 다시 찾고(`relaxed`), 빠진 부품 모델 번호가 이름에 있는 상품 → 낮은 가격 순으로 고름.
+
 ## 버전 표시
 - 번들 안 `var r4="YYYY.MM.DD-NN"` 이 데이터 관리 창 상단 버전. **수정할 때마다 올린다.**
 - 앱은 화면 복귀/로드 5초 후 `index.html` 의 r4 를 비교해 다르면 자동 새로고침.
