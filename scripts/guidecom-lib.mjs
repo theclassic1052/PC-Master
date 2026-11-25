@@ -140,30 +140,17 @@ export function gpuOf(text) {
   return { key, score: GPU_SCORE[key] ?? null };
 }
 export async function bestFor(spec, label) {
-  let items = await list(spec), relaxed = '';
-  if (!items.length) { // 딱 맞는 상품이 없으면 그래픽카드 → CPU 조건 하나만으로 다시 찾기
-    const pairs = spec.split(',');
-    const order = [...pairs.filter((p) => !CPU_GROUPS.has(p.split('|')[0])), ...pairs.filter((p) => CPU_GROUPS.has(p.split('|')[0]))];
-    for (const p of order) {
-      if (pairs.length < 2) break;
-      items = await list(p);
-      if (items.length) { relaxed = CPU_GROUPS.has(p.split('|')[0]) ? 'cpu' : 'vga'; items = rank(items, label, relaxed); break; }
-    }
+  // 가이드컴 추천표의 사양 그대로만 보여준다(비슷한 PC로 대신하지 않음).
+  // 가이드컴은 상품이 하나도 없는 조건(예: 단종 그래픽카드)을 무시하고 나머지 조건으로만 보여주므로,
+  // 조건 하나하나에 상품이 있는지 먼저 확인하고, 하나라도 없으면 '추천 PC 없음'.
+  const pairs = spec.split(',').filter(Boolean);
+  if (pairs.length > 1) {
+    for (const p of pairs) if (!(await list(p)).length) return { relaxed: '', items: [], none: true };
   }
-  // 가이드컴은 상품이 없는 필터를 무시해서, 추천 그래픽카드와 다른 PC가 섞여 나올 수 있다 → 이름으로 다시 확인
+  let items = await list(spec);
   const want = gpuOf(String(label || '').split('+')[1] || '');
-  if (want && items.length) {
-    const tagged = items.map((it) => ({ it, g: gpuOf(it.name) }));
-    const exact = tagged.filter((x) => x.g && x.g.key === want.key);
-    if (exact.length) items = [...exact, ...tagged.filter((x) => !exact.includes(x))].map((x) => x.it);
-    else {
-      relaxed = 'gpu';
-      const ws = want.score ?? 0;
-      const cls = (x) => (x.g?.score == null ? 2 : x.g.score >= ws ? 0 : 1); // 0: 같거나 더 좋은 카드, 1: 낮은 카드, 2: 모름
-      items = tagged.sort((a, b) => cls(a) - cls(b) || (cls(a) === 0 ? a.g.score - b.g.score : cls(a) === 1 ? b.g.score - a.g.score : 0) || ((a.it.price || 9e9) - (b.it.price || 9e9))).map((x) => x.it);
-    }
-  }
-  return { relaxed, items: items.slice(0, TOP), want: want ? want.key : '' };
+  if (want) items = items.filter((it) => { const g = gpuOf(it.name); return !g || g.key === want.key; });
+  return { relaxed: '', items: items.slice(0, TOP), none: !items.length };
 }
 
 

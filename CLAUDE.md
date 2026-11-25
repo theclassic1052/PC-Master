@@ -28,8 +28,7 @@
 - `게임견적` → `window.pcmGameQuote(onAdd)` 팝업(번들 아래 `<script id="guidecom-voice">` 안, 순수 DOM): 게임 선택 → 해상도·옵션·인텔/AMD → 추천 조립PC(최대 3개, 부품별 가격) → `견적서에 추가` 시 부품을 품목으로 일괄 추가(단가 = 부품가 +%, 1,000원 단위, 부가세 별도로 전환, 이벤트 사은품 제외).
 - **실시간 우선**: 게임을 고르면 `가이드컴 검색 Worker/gq?game=ID`, 옵션을 고르면 `/gq?spec=…&label=…` 로 가이드컴에서 바로 읽음(팝업에 "● 가이드컴 실시간"). Worker `guidecom-search`(대시보드 관리) 구성: `worker.js`(기존 `/?q=` 검색, 1행에 `import { handleGq } from './gq.js'`, fetch 안 `const u = new URL(req.url)` 다음 줄에 `if (u.pathname === '/gq') return handleGq(u);`) + `gq.js`(= `scripts/guidecom-lib.mjs` 그대로). lib 를 고치면 대시보드 gq.js 도 같이 바꿔 Deploy(GitHub 파일 화면 'Copy raw file' → 편집기 Ctrl+A·Ctrl+V 가 확실, 직접 타이핑은 자동 괄호 때문에 깨짐). 2026-11-25 배포(9a9715a5), 응답 약 2~3초. Worker 에 없거나 실패하면 아래 예비 데이터로 표시("● 실시간 연결 안 됨 · 날짜 기준").
 - 예비 데이터: 저장소 루트 `gaming.json`. `scripts/gaming-scrape.mjs`(+`guidecom-lib.mjs`) 를 `.github/workflows/gaming.yml` 이 **매일 06:07(KST)** 실행해 가이드컴(`/pc/gaming_loader.php`, `/pc/list.php`, `/pc/detail.html` 의 `:data-parts`)에서 모아 커밋. 같은 주소라 CORS·Worker 불필요. 수동 갱신은 Actions → "게임견적 데이터 갱신" → Run workflow.
-- 가이드컴 목록은 상품이 없는 필터(예: 단종된 RTX 4060 Ti)를 **무시**해서 엉뚱한 그래픽카드 PC가 섞여 나옴 → `gpuOf()` 로 상품명에서 그래픽카드를 읽어 추천 카드와 같은 것 우선, 없으면 `relaxed:'gpu'` + `GPU_SCORE` 로 '같거나 더 좋은 카드 중 가장 가까운 것 → 낮은 카드' 순. 새 그래픽카드가 나오면 `GPU_SCORE` 에 추가.
-- 딱 맞는 CPU+그래픽카드 상품이 없으면 그래픽카드(또는 CPU) 조건만으로 다시 찾고(`relaxed`), 빠진 부품 모델 번호가 이름에 있는 상품 → 낮은 가격 순으로 고름.
+- **가이드컴 목록 그대로만 표시(비슷한 PC로 대신하지 않음)**: 가이드컴은 상품이 없는 조건(단종 그래픽카드 등)을 무시하고 나머지 조건으로 보여주므로, `bestFor` 가 조건 하나씩 상품이 있는지 확인해 하나라도 없으면 `none:true` → 팝업에 '추천 PC 없음'. 결과도 상품명 그래픽카드(`gpuOf`)가 추천과 다르면 제외.
 
 ## 버전 표시
 - 번들 안 `var r4="YYYY.MM.DD-NN"` 이 데이터 관리 창 상단 버전. **수정할 때마다 올린다.**
