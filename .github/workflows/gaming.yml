@@ -1,0 +1,31 @@
+name: 게임견적 데이터 갱신 (가이드컴)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7 21 * * *'   # 매일 06:07 (한국시간)
+  push:
+    paths: ['scripts/gaming-scrape.mjs', '.github/workflows/gaming.yml']
+permissions:
+  contents: write
+concurrency:
+  group: gaming
+  cancel-in-progress: false
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 가이드컴 게임별 추천 수집
+        run: node scripts/gaming-scrape.mjs gaming.json
+      - name: 바뀌었으면 커밋
+        run: |
+          git config user.name "theclassic1052"
+          git config user.email "theclassic1052@users.noreply.github.com"
+          git add gaming.json
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          git commit -m "게임견적 데이터 갱신 (가이드컴 $(TZ=Asia/Seoul date +%F))"
+          for i in 1 2 3; do git pull --rebase -q origin main && git push -q origin HEAD:main && break; sleep 5; done
