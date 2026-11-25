@@ -140,17 +140,40 @@ export function gpuOf(text) {
   return { key, score: GPU_SCORE[key] ?? null };
 }
 export async function bestFor(spec, label) {
-  // 가이드컴 추천표의 사양 그대로만 보여준다(비슷한 PC로 대신하지 않음).
-  // 가이드컴은 상품이 하나도 없는 조건(예: 단종 그래픽카드)을 무시하고 나머지 조건으로만 보여주므로,
-  // 조건 하나하나에 상품이 있는지 먼저 확인하고, 하나라도 없으면 '추천 PC 없음'.
+  // 1) 가이드컴 추천표 사양 그대로의 조립PC 목록(가이드컴 추천순).
+  // 2) 사양 중 재고(상품)가 없는 부품이 있으면: 나머지 부품이 같은 가이드컴 PC 하나를 골라
+  //    그 PC의 부품 구성으로 견적을 만들고, 없는 부품만 비슷한 것으로 채운다(sub 표시).
+  //    가이드컴은 상품이 없는 조건을 무시하므로 조건 하나씩 상품 유무를 먼저 확인한다.
   const pairs = spec.split(',').filter(Boolean);
-  if (pairs.length > 1) {
-    for (const p of pairs) if (!(await list(p)).length) return { relaxed: '', items: [], none: true };
+  const [cpuLabel = '', vgaLabel = ''] = String(label || '').split('+').map((x) => x.trim());
+  const want = gpuOf(vgaLabel);
+  const missing = [];
+  if (pairs.length > 1) for (const p of pairs) if (!(await list(p)).length) missing.push(p);
+  if (!missing.length) {
+    let items = await list(spec);
+    if (want) items = items.filter((it) => { const g = gpuOf(it.name); return !g || g.key === want.key; });
+    return { relaxed: '', items: items.slice(0, TOP), none: !items.length };
   }
-  let items = await list(spec);
-  const want = gpuOf(String(label || '').split('+')[1] || '');
-  if (want) items = items.filter((it) => { const g = gpuOf(it.name); return !g || g.key === want.key; });
-  return { relaxed: '', items: items.slice(0, TOP), none: !items.length };
+  if (missing.length >= pairs.length) return { relaxed: '', items: [], none: true };
+  const have = pairs.find((p) => !missing.includes(p));
+  const pool = await list(have);
+  if (!pool.length) return { relaxed: '', items: [], none: true };
+  const vgaMissing = !CPU_GROUPS.has(have.split('|')[0]); // 남은 조건이 CPU 가 아니면 → 그래픽카드가 남음 = CPU 가 없는 것
+  let pick;
+  if (!vgaMissing) {
+    // CPU 는 있고 그래픽카드가 없음 → 같은 CPU PC 중 추천 카드와 같거나 더 좋은 것 중 가장 가까운 카드, 없으면 바로 아래 카드
+    const ws = want?.score ?? 0;
+    const t = pool.map((it) => ({ it, g: gpuOf(it.name) }));
+    const cls = (x) => (x.g?.score == null ? 2 : x.g.score >= ws ? 0 : 1);
+    t.sort((a, b) => cls(a) - cls(b) || (cls(a) === 0 ? a.g.score - b.g.score : cls(a) === 1 ? b.g.score - a.g.score : 0) || ((a.it.price || 9e9) - (b.it.price || 9e9)));
+    pick = t[0].it;
+    return { relaxed: 'sub', none: false, items: [{ ...pick, sub: { cate: 'VGA', from: vgaLabel } }] };
+  }
+  // 그래픽카드는 있고 CPU 가 없음 → 같은 회사(인텔/AMD) CPU PC 중 가장 싼 것
+  const amd = /라이젠|ryzen|amd|^r\d/i.test(cpuLabel);
+  const same = pool.filter((it) => (amd ? /라이젠|ryzen|amd|\bR[3579]\b/i.test(it.name) : /인텔|intel|\bi[3579]\b|\d{5}[FK]|울트라|ultra/i.test(it.name)));
+  pick = (same.length ? same : pool).slice().sort((a, b) => (a.price || 9e9) - (b.price || 9e9))[0];
+  return { relaxed: 'sub', none: false, items: [{ ...pick, sub: { cate: 'CPU', from: cpuLabel } }] };
 }
 
 
