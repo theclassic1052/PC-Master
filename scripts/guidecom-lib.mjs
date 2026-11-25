@@ -152,7 +152,9 @@ export async function bestFor(spec, label) {
   if (!missing.length) {
     let items = await list(spec);
     if (want) items = items.filter((it) => { const g = gpuOf(it.name); return !g || g.key === want.key; });
-    return { relaxed: '', items: items.slice(0, TOP), none: !items.length };
+    if (items.length || pairs.length < 2) return { relaxed: '', items: items.slice(0, TOP), none: !items.length };
+    // CPU·그래픽카드 각각은 있지만 둘을 같이 쓴 PC가 없음 → CPU 는 그대로, 그래픽카드만 대체
+    missing.push(...pairs.filter((p) => !CPU_GROUPS.has(p.split('|')[0])));
   }
   if (missing.length >= pairs.length) return { relaxed: '', items: [], none: true };
   const have = pairs.find((p) => !missing.includes(p));
