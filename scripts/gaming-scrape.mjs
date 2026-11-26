@@ -1,6 +1,6 @@
 // 가이드컴 게임별 추천 데이터를 모아 gaming.json(예비 데이터)으로 저장. 사용: node scripts/gaming-scrape.mjs [출력=gaming.json]
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
-import { BASE, req, games, parseLoader, bestFor, parts, pool } from './guidecom-lib.mjs';
+import { BASE, req, games, parseLoader, bestFor, parts, pool, USES, useList } from './guidecom-lib.mjs';
 const OUT = process.argv[2] || 'gaming.json';
 const t0 = Date.now();
 const { list: gameList, popular } = await games();
@@ -25,12 +25,18 @@ const goods = {};
 await pool([...gids], 3, async (gid) => { try { goods[gid] = await parts(gid); } catch (e) { console.warn('상품', gid, e.message); } });
 for (const v of Object.values(specData)) for (const it of v.items) it.parts = goods[it.gid] || [];
 
+const uses = {};
+for (const u of USES) {
+  try { uses[u.spec] = { name: u.name, items: await useList(u.spec) }; console.log(`${u.name} ${uses[u.spec].items.length}개`); }
+  catch (e) { console.warn(u.name, e.message); }
+}
+
 const okGames = gameList.filter((g) => rec[g.id]?.length);
 if (okGames.length < gameList.length / 2 || !Object.values(specData).some((v) => v.items.length)) {
   console.error('수집된 데이터가 너무 적어서 저장하지 않아요');
   process.exit(1);
 }
-const data = { source: BASE + '/pc/index.html', updatedAt: new Date().toISOString(), games: okGames, popular: popular.filter((id) => rec[id]?.length), rec, specs: specData };
+const data = { source: BASE + '/pc/index.html', updatedAt: new Date().toISOString(), games: okGames, popular: popular.filter((id) => rec[id]?.length), rec, specs: specData, uses };
 const json = JSON.stringify(data);
 const prev = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
 const strip2 = (s) => s.replace(/"updatedAt":"[^"]*"/, '');

@@ -88,8 +88,8 @@ export function parseList(html) {
   }
   return out;
 }
-export async function list(spec) {
-  const body = new URLSearchParams({ expanded: '1', spec, spec_expanded: '1', order: 'reco_goods', lpp: '12', page: '1' }).toString();
+export async function list(spec, lpp = 12) {
+  const body = new URLSearchParams({ expanded: '1', spec, spec_expanded: '1', order: 'reco_goods', lpp: String(lpp), page: '1' }).toString();
   return parseList(await req('/pc/list.php', body));
 }
 
@@ -178,8 +178,15 @@ export async function bestFor(spec, label) {
   return { relaxed: 'sub', none: false, items: [{ ...pick, sub: { cate: 'CPU', from: cpuLabel } }] };
 }
 
+// 가이드컴 조립PC 'PC용도별' 필터 목록(가이드컴 추천순, 전체)
+export const USES = [{ spec: '4835.0|4866', name: '방송용' }];
+export async function useList(spec) {
+  const items = (await list(spec, 30)).slice(0, 30);
+  await pool(items, 4, async (it) => { it.parts = await parts(it.gid).catch(() => []); });
+  return items;
+}
 
-// ---------- Worker 용: GET /gq?game=ID  |  /gq?spec=…&label=…  |  /gq?gid=… ----------
+// ---------- Worker 용: GET /gq?game=ID  |  /gq?spec=…&label=…  |  /gq?gid=…  |  /gq?use=… ----------
 const memo = new Map(); // 같은 Worker 인스턴스 안 짧은 캐시(60초)
 async function cached(key, fn) {
   const hit = memo.get(key);
@@ -193,7 +200,11 @@ export async function handleGq(url) {
   const q = url.searchParams;
   try {
     let out;
-    if (q.get('game')) {
+    if (q.get('use')) {
+      const use = q.get('use');
+      if (!USES.some((u) => u.spec === use)) throw new Error('bad use');
+      out = await cached('u' + use, async () => ({ use, items: await useList(use) }));
+    } else if (q.get('game')) {
       const id = q.get('game');
       if (!/^\d{1,3}$/.test(id)) throw new Error('bad game');
       out = await cached('g' + id, async () => {

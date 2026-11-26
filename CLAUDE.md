@@ -29,6 +29,7 @@
 - **실시간 우선**: 게임을 고르면 `가이드컴 검색 Worker/gq?game=ID`, 옵션을 고르면 `/gq?spec=…&label=…` 로 가이드컴에서 바로 읽음(팝업에 "● 가이드컴 실시간"). Worker `guidecom-search`(대시보드 관리) 구성: `worker.js`(기존 `/?q=` 검색, 1행에 `import { handleGq } from './gq.js'`, fetch 안 `const u = new URL(req.url)` 다음 줄에 `if (u.pathname === '/gq') return handleGq(u);`) + `gq.js`(= `scripts/guidecom-lib.mjs` 그대로). lib 를 고치면 대시보드 gq.js 도 같이 바꿔 Deploy(GitHub 파일 화면 'Copy raw file' → 편집기 Ctrl+A·Ctrl+V 가 확실, 직접 타이핑은 자동 괄호 때문에 깨짐). 2026-11-25 배포, 응답 약 2~3초. Worker 에 없거나 실패하면 아래 예비 데이터로 표시("● 실시간 연결 안 됨 · 날짜 기준").
 - 예비 데이터: 저장소 루트 `gaming.json`. `scripts/gaming-scrape.mjs`(+`guidecom-lib.mjs`) 를 `.github/workflows/gaming.yml` 이 **매일 06:07(KST)** 실행해 가이드컴(`/pc/gaming_loader.php`, `/pc/list.php`, `/pc/detail.html` 의 `:data-parts`)에서 모아 커밋. 같은 주소라 CORS·Worker 불필요. 수동 갱신은 Actions → "게임견적 데이터 갱신" → Run workflow.
 - **사양 그대로의 가이드컴 목록 우선, 재고 없는 부품만 대체**: 가이드컴은 상품이 없는 조건을 무시하므로 `bestFor` 가 조건(CPU·그래픽카드)마다 상품 유무 확인. 다 있으면 그 목록(그래픽카드 다른 상품 제외). 하나가 없으면 남은 조건이 같은 가이드컴 PC 1대의 부품 구성으로 '대체 견적'(`sub:{cate:'VGA'|'CPU',from}`): 그래픽카드 없음 → 같은 CPU PC 중 `GPU_SCORE` 로 같거나 더 좋은 가장 가까운 카드, CPU 없음 → 같은 회사 CPU PC 중 최저가. 팝업에서 대체 부품은 노란색 '대체 ·'. 둘 다 없으면 '추천 PC 없음'.
+- **방송용**: 팝업 첫 화면의 `🎥 방송용 추천 PC` = 가이드컴 조립PC 'PC용도별 → 방송용' 필터(`4835.0|4866`) 전체를 추천순으로(부품별 가격 포함). lib `USES`/`useList`, Worker `/gq?use=4835.0|4866`, 예비 데이터는 `gaming.json` 의 `uses`.
 
 ## 장부 분류 규칙
 - 은행 문자 자동 등록(`Sr`) 분류 순서: **규칙(`od`, 장부 → 규칙) 우선** → 없으면 같은 거래처 과거 분류(`de`). (예전엔 과거 분류가 규칙보다 먼저라 '박상현 → 내부거래' 규칙이 무시됐음)
